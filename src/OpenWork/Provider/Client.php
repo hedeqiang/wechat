@@ -38,19 +38,27 @@ class Client extends BaseClient
      * @param  string  $redirectUri
      * @param  string  $userType
      * @param  string  $state
+     * @param  bool  $serviceWwlogin
      *
      * @return string
      */
-    public function getLoginUrl(string $redirectUri = '', string $userType = 'admin', string $state = '')
+    public function getLoginUrl(string $redirectUri = '', string $userType = 'admin', string $state = '', bool $serviceWwlogin = false)
     {
         $redirectUri || $redirectUri = $this->app->config['redirect_uri_single'];
-        $state || $state = rand();
+        $state || $state = random_bytes(64);
         $params = [
             'appid' => $this->app['config']['corp_id'],
             'redirect_uri' => $redirectUri,
             'usertype' => $userType,
             'state' => $state,
         ];
+
+        // 新版企微登录
+        if ($serviceWwlogin) {
+            $params['appid'] = $this->app['config']['suite_id'];
+            $params['login_type'] = 'ServiceApp';
+            return 'https://login.work.weixin.qq.com/wwlogin/sso/login?'.http_build_query($params);
+        }
 
         return 'https://open.work.weixin.qq.com/wwopen/sso/3rd_qrConnect?'.http_build_query($params);
     }
@@ -116,7 +124,8 @@ class Client extends BaseClient
         string $corpName = '',
         string $adminName = '',
         string $adminMobile = '',
-        string $state = ''
+        string $state = '',
+        string $templateId = ''
     ) {
         $params = [];
         $params['template_id'] = $this->app['config']['reg_template_id'];
@@ -124,6 +133,7 @@ class Client extends BaseClient
         !empty($adminName) && $params['admin_name'] = $adminName;
         !empty($adminMobile) && $params['admin_mobile'] = $adminMobile;
         !empty($state) && $params['state'] = $state;
+        !empty($templateId) && $params['template_id'] = $templateId;
 
         return $this->httpPostJson('cgi-bin/service/get_register_code', $params);
     }
@@ -238,5 +248,20 @@ class Client extends BaseClient
         !empty($fullMatchField) && $params['full_match_field'] = $fullMatchField;
 
         return $this->httpPostJson('cgi-bin/service/contact/search', $params);
+    }
+
+    /**
+     * 自建应用代开发获取带参授权链接
+     *
+     * @see https://developer.work.weixin.qq.com/document/path/95436
+     *
+     * @param array $params 请求参数
+     *
+     * @return array|\EasyWeChat\Kernel\Support\Collection|object|\Psr\Http\Message\ResponseInterface|string
+     * @throws \EasyWeChat\Kernel\Exceptions\InvalidConfigException
+     */
+    public function getCustomizedAuthUrl(array $params)
+    {
+        return $this->httpPostJson('cgi-bin/service/get_customized_auth_url', $params);
     }
 }

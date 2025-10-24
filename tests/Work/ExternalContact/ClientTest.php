@@ -67,13 +67,13 @@ class ClientTest extends TestCase
         $client = $this->mockApiClient(Client::class);
 
         $params = [
-            'userid' => 'rocky',
+            'userid_list' => ['rocky'],
             'cursor' => '',
-            'limit' => 1000,
+            'limit' => 100,
         ];
         $client->expects()->httpPostJson('cgi-bin/externalcontact/batch/get_by_user', $params)->andReturn('mock-result');
 
-        $this->assertSame('mock-result', $client->batchGet('rocky', '', 1000));
+        $this->assertSame('mock-result', $client->batchGet(['rocky'], '', 100));
     }
 
     public function testRemark(): void
@@ -122,6 +122,35 @@ class ClientTest extends TestCase
         $this->assertSame('mock-result', $client->transfer('mock-external-userid', 'mock-handover-userid', 'mock-takeover-userid', 'message'));
     }
 
+    public function testTransferCustomer()
+    {
+        $client = $this->mockApiClient(Client::class);
+
+        $params = [
+            'external_userid' => ['mock-external-userid'],
+            'handover_userid' => 'mock-handover-userid',
+            'takeover_userid' => 'mock-takeover-userid',
+            'transfer_success_msg' => 'message',
+        ];
+        $client->expects()->httpPostJson('cgi-bin/externalcontact/transfer_customer', $params)->andReturn('mock-result');
+
+        $this->assertSame('mock-result', $client->transferCustomer(['mock-external-userid'], 'mock-handover-userid', 'mock-takeover-userid', 'message'));
+    }
+
+    public function testResignedTransferCustomer()
+    {
+        $client = $this->mockApiClient(Client::class);
+
+        $params = [
+            'external_userid' => ['mock-external-userid'],
+            'handover_userid' => 'mock-handover-userid',
+            'takeover_userid' => 'mock-takeover-userid',
+        ];
+        $client->expects()->httpPostJson('cgi-bin/externalcontact/resigned/transfer_customer', $params)->andReturn('mock-result');
+
+        $this->assertSame('mock-result', $client->resignedTransferCustomer(['mock-external-userid'], 'mock-handover-userid', 'mock-takeover-userid'));
+    }
+
     public function testTransferGroupChat(): void
     {
         $client = $this->mockApiClient(Client::class);
@@ -133,6 +162,20 @@ class ClientTest extends TestCase
         $client->expects()->httpPostJson('cgi-bin/externalcontact/groupchat/transfer', $params)->andReturn('mock-result');
 
         $this->assertSame('mock-result', $client->transferGroupChat(['群聊id1', '群聊id2'], '接替群主userid'));
+    }
+
+    public function testTransferResult(): void
+    {
+        $client = $this->mockApiClient(Client::class);
+
+        $params = [
+            'handover_userid' => 'zhangsan',
+            'takeover_userid' => 'lisi',
+            'cursor' => 'cursor',
+        ];
+        $client->expects()->httpPostJson('cgi-bin/externalcontact/resigned/transfer_result', $params)->andReturn('mock-result');
+
+        $this->assertSame('mock-result', $client->transferResult('zhangsan', 'lisi', 'cursor'));
     }
 
     public function testGetTransferResult(): void
@@ -172,11 +215,20 @@ class ClientTest extends TestCase
         $client = $this->mockApiClient(Client::class);
 
         $params = [
-            'chat_id' => 'CHAT_ID_1'
+            'chat_id' => 'CHAT_ID_1',
+            'need_name' => 0
         ];
         $client->expects()->httpPostJson('cgi-bin/externalcontact/groupchat/get', $params)->andReturn('mock-result');
 
         $this->assertSame('mock-result', $client->getGroupChat('CHAT_ID_1'));
+
+        $params = [
+            'chat_id' => 'CHAT_ID_1',
+            'need_name' => 1
+        ];
+        $client->expects()->httpPostJson('cgi-bin/externalcontact/groupchat/get', $params)->andReturn('mock-result');
+
+        $this->assertSame('mock-result', $client->getGroupChat('CHAT_ID_1', 1));
     }
 
     public function testGetCorpTags(): void
@@ -184,11 +236,12 @@ class ClientTest extends TestCase
         $client = $this->mockApiClient(Client::class);
 
         $params = [
-            'tag_id' => ['TAG_ID_1', 'TAG_ID_2']
+            'tag_id' => ['TAG_ID_1', 'TAG_ID_2'],
+            'group_id' => ['GROUP_ID_1', 'GROUP_ID_2']
         ];
         $client->expects()->httpPostJson('cgi-bin/externalcontact/get_corp_tag_list', $params)->andReturn('mock-result');
 
-        $this->assertSame('mock-result', $client->getCorpTags(['TAG_ID_1', 'TAG_ID_2']));
+        $this->assertSame('mock-result', $client->getCorpTags(['TAG_ID_1', 'TAG_ID_2'], ['GROUP_ID_1', 'GROUP_ID_2']));
     }
 
     public function testAddCorpTag(): void
@@ -255,5 +308,104 @@ class ClientTest extends TestCase
         $client->expects()->httpPostJson('cgi-bin/externalcontact/mark_tag', $params)->andReturn('mock-result');
 
         $this->assertSame('mock-result', $client->markTags($params));
+    }
+
+    public function testUnionidToExternalUserid(): void
+    {
+        $client = $this->mockApiClient(Client::class);
+        $unionid = 'unionid';
+        $openid = 'openid';
+        $client->expects()->httpPostJson('cgi-bin/externalcontact/unionid_to_external_userid', ['unionid' => $unionid, 'openid' => $openid])->andReturn('mock-result');
+        $this->assertSame('mock-result', $client->unionidToExternalUserid($unionid, $openid));
+    }
+
+    public function testToServiceExternalUserid(): void
+    {
+        $client = $this->mockApiClient(Client::class);
+        $externalUserid = 'externalUserid';
+        $client->expects()->httpPostJson('cgi-bin/externalcontact/to_service_external_userid', ['external_userid' => $externalUserid])->andReturn('mock-result');
+        $this->assertSame('mock-result', $client->toServiceExternalUserid($externalUserid));
+    }
+
+    /**
+     * testGetNewExternalUserid.
+     *
+     * @return void
+     *
+     * @author 读心印 <aa24615@qq.com>
+     */
+    public function testGetNewExternalUserid(): void
+    {
+        $client = $this->mockApiClient(Client::class);
+
+        $externalUserIds = ['externalUserid1'];
+
+        $client->expects()->httpPostJson('cgi-bin/externalcontact/get_new_external_userid', ['external_userid_list' => $externalUserIds])->andReturn('mock-result');
+        $this->assertSame('mock-result', $client->getNewExternalUserid($externalUserIds));
+    }
+
+    /**
+     * testFinishExternalUseridMigration.
+     *
+     * @return void
+     *
+     * @author 读心印 <aa24615@qq.com>
+     */
+    public function testFinishExternalUseridMigration(): void
+    {
+        $client = $this->mockApiClient(Client::class);
+
+        $corpid = 'xxxx1323';
+
+        $client->expects()->httpPostJson('cgi-bin/externalcontact/finish_external_userid_migration', ['corpid' => $corpid])->andReturn('mock-result');
+        $this->assertSame('mock-result', $client->finishExternalUseridMigration($corpid));
+    }
+
+    /**
+     * testUnionidToexternalUserid3rd.
+     *
+     * @return void
+     *
+     * @author 读心印 <aa24615@qq.com>
+     */
+    public function testUnionidToexternalUserid3rd(): void
+    {
+        $client = $this->mockApiClient(Client::class);
+
+        $params = [
+            'unionid' => 'unionid-test',
+            'openid' => 'openid-test',
+            'corpid' => 'corpid-test'
+        ];
+
+        $client->expects()->httpPostJson('cgi-bin/externalcontact/unionid_to_external_userid_3rd', $params)->andReturn('mock-result');
+        $this->assertSame('mock-result', $client->unionidToexternalUserid3rd('unionid-test', 'openid-test', 'corpid-test'));
+    }
+
+    public function testOpengidToChatid()
+    {
+        $client = $this->mockApiClient(Client::class);
+
+        $client->expects()->httpPostJson('cgi-bin/externalcontact/opengid_to_chatid', [
+            'opengid' => 'msg2MgBEgAATurBYDPgS32DfSt5vdzaHA'
+        ])->andReturn('mock-result');
+
+        $this->assertSame('mock-result', $client->opengidToChatid('msg2MgBEgAATurBYDPgS32DfSt5vdzaHA'));
+    }
+
+    public function testUploadAttachment()
+    {
+        $client = $this->mockApiClient(Client::class);
+
+        $query = [
+            'media_type' => 'image',
+            'attachment_type' => 1,
+        ];
+
+        $client->expects()->httpUpload('cgi-bin/media/upload_attachment', [
+            'media' => '/foo/bar/image.jpg'
+        ], [], $query)->andReturn('mock-result');
+
+        $this->assertSame('mock-result', $client->uploadAttachment('/foo/bar/image.jpg', 'image', 1));
     }
 }
